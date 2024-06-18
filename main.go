@@ -1,47 +1,42 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"github.com/joho/godotenv"
-	"github.com/shomali11/slacker"
-	"log"
+	"github.com/slack-go/slack"
 	"os"
-	"strconv"
-	"time"
 )
 
 func main() {
-	slackToken := goDotEnvVariable("SLACK_TOKEN")
-	botUserToken := goDotEnvVariable("BOT_USER_TOKEN")
+	slackBotToken := goDotEnvVariable("SLACK_BOT_TOKEN")
+	channelID := goDotEnvVariable("CHANNEL_ID")
 
-	bot := slacker.NewClient(botUserToken, slackToken)
+	api := slack.New(slackBotToken)
 
-	go printCommandEvents(bot.CommandEvents())
+	fileInfo, err := os.Stat("Testing_Jazz.pdf")
 
-	bot.Command("my year of birth is <year>", &slacker.CommandDefinition{
-		Description: "YOB Calculator",
-		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
-			year := request.Param("year")
-			yob, err := strconv.Atoi(year)
-			if err != nil {
-				println("error")
-			}
-			t := time.Now()
-			currentYear := t.Year() // type int
-			age := currentYear - yob
-			r := fmt.Sprintf("Age is %d", age)
-			response.Reply(r)
-		},
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	err := bot.Listen(ctx)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Printf("Error parsing file: %s\n", err)
+		return
 	}
+
+	//Flattened this out of an array as prior technique didn't factor in new method and its params.
+	params := slack.UploadFileV2Parameters{
+		Channel:  channelID,
+		File:     fileInfo.Name(),
+		Filename: fileInfo.Name(),
+		FileSize: int(fileInfo.Size()),
+	}
+
+	file, err := api.UploadFileV2(params)
+
+	if err != nil {
+		fmt.Printf("Error uploading file: %s\n", err)
+		return
+	}
+
+	fmt.Printf("File uploaded:%s\n", file)
+
 }
 
 func goDotEnvVariable(key string) string {
@@ -53,14 +48,4 @@ func goDotEnvVariable(key string) string {
 	}
 
 	return os.Getenv(key)
-}
-
-func printCommandEvents(analyticsChannel <-chan *slacker.CommandEvent) {
-	for event := range analyticsChannel {
-		fmt.Println("Command Events")
-		fmt.Println(event.Timestamp)
-		fmt.Println(event.Command)
-		fmt.Println(event.Parameters)
-		fmt.Println(event.Event)
-	}
 }
